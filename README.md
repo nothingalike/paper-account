@@ -16,7 +16,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-paper_account = { git = "https://github.com/yourusername/rs-paper-account" }
+paper_account = "0.1.1"
 ```
 
 ## Example
