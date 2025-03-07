@@ -9,6 +9,8 @@ A Rust library for paper trading accounts that can be integrated into trading bo
 - **Position Tracking**: Track positions and average entry prices
 - **Portfolio Valuation**: Calculate equity, P&L, and ROI
 - **Market Simulation**: Simple market data provider for paper trading
+- **Multiple Accounts**: Manage multiple paper trading accounts with different configurations
+- **Account Persistence**: Save and load accounts to/from JSON files
 
 ## Usage
 
@@ -63,6 +65,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Multiple Accounts Example
+
+```rust
+use paper_account::{
+    AccountManager, Config, OrderSide, Symbol, Price, Quantity, Order,
+    market::SimpleMarketDataProvider,
+};
+use rust_decimal_macros::dec;
+use rust_decimal::Decimal;
+use std::str::FromStr;
+
+fn main() -> paper_account::error::Result<()> {
+    // Initialize the library
+    paper_account::init();
+    
+    // Create an account manager
+    let mut manager = AccountManager::new();
+    
+    // Create different account configurations
+    let conservative_config = Config {
+        default_slippage: Decimal::from_str("0.001")?,  // 0.1% slippage
+        default_spread: Decimal::from_str("0.0005")?,   // 0.05% spread
+        commission_rate: Decimal::from_str("0.0025")?,  // 0.25% commission
+        ..Config::default()
+    };
+    
+    // Create accounts with different configurations
+    let conservative_id = manager.create_account_with_config(
+        "Conservative Portfolio", 
+        "USD", 
+        dec!(50000),
+        conservative_config
+    )?;
+    
+    // Save accounts to disk
+    manager.save_accounts()?;
+    
+    // Load accounts from disk
+    let loaded_manager = AccountManager::load_accounts()?;
+    
+    Ok(())
+}
+```
+
 ## Examples
 
 The repository includes several examples to demonstrate how to use the library:
@@ -97,12 +143,20 @@ cargo run --example market_simulation
 ```
 Demonstrates how to simulate market price movements and process orders against changing prices.
 
+### Multiple Accounts
+```bash
+cargo run --example multiple_accounts
+```
+Shows how to manage multiple paper trading accounts with different configurations.
+
 ## Core Components
 
 - **Account**: Manages the paper trading account, including cash balance, positions, and orders
 - **Order**: Represents different order types (market, limit, stop, stop-limit)
 - **Position**: Tracks positions and calculates P&L
 - **Market**: Provides market data for paper trading
+- **AccountManager**: Central registry to manage multiple accounts with different configurations
+- **Config**: Configuration settings for accounts including slippage, spread, and commission rates
 
 ## Configuration
 
