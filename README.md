@@ -1,4 +1,4 @@
-# rs-paper-account
+# Paper Account Manager
 
 A Rust library for paper trading accounts that can be integrated into trading bots.
 
