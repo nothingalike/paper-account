@@ -58,6 +58,12 @@ pub enum Error {
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
     
+    #[error("Decimal error: {0}")]
+    DecimalError(#[from] rust_decimal::Error),
+    
+    #[error("Custom error: {0}")]
+    Custom(String),
+    
     #[error("Unknown error: {0}")]
     Unknown(String),
 }

@@ -8,6 +8,7 @@ use crate::market::MarketDataProvider;
 use crate::order::{Order, OrderSide, OrderType, Trade};
 use crate::position::Position;
 use crate::types::{AccountId, OrderId, Price, Symbol};
+use crate::config::Config;
 
 /// Represents a paper trading account
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +33,9 @@ pub struct Account {
     pub created_at: DateTime<Utc>,
     /// Last updated timestamp
     pub updated_at: DateTime<Utc>,
+    /// Account-specific configuration
+    #[serde(skip)]
+    pub config: Option<Config>,
 }
 
 impl Account {
@@ -49,7 +53,19 @@ impl Account {
             order_history: Vec::new(),
             created_at: now,
             updated_at: now,
+            config: None,
         }
+    }
+
+    /// Set account-specific configuration
+    pub fn with_config(mut self, config: Config) -> Self {
+        self.config = Some(config);
+        self
+    }
+    
+    /// Get the account's configuration, or the global configuration if none is set
+    pub fn get_config(&self) -> Config {
+        self.config.clone().unwrap_or_else(|| crate::config::get())
     }
 
     /// Get the total equity value of the account (cash + positions)
@@ -138,11 +154,15 @@ impl Account {
         order_id: &OrderId,
         market_data: &M,
     ) -> Result<()> {
+        let order_id_copy = *order_id;
+        
+        // Get the order
         let order = self
-            .get_order_mut(order_id)
+            .get_order(order_id)
             .ok_or_else(|| Error::OrderNotFound {
-                order_id: *order_id,
-            })?;
+                order_id: order_id_copy,
+            })?
+            .clone();
 
         // Only process market orders
         if order.order_type != OrderType::Market {
@@ -156,13 +176,21 @@ impl Account {
 
         // Get current market price
         let quote = market_data.get_quote(&order.symbol)?;
-        let execution_price = match order.side {
+        let base_price = match order.side {
             OrderSide::Buy => quote.ask,
             OrderSide::Sell => quote.bid,
         };
+        
+        // Apply slippage from configuration
+        let config = self.get_config();
+        let slippage_adjustment = Price(base_price.0 * config.default_slippage);
+        let execution_price = match order.side {
+            OrderSide::Buy => Price(base_price.0 + slippage_adjustment.0),
+            OrderSide::Sell => Price(base_price.0 - slippage_adjustment.0),
+        };
 
-        // Execute the order at market price
-        self.execute_order_at_price(order_id, execution_price)?;
+        // Execute the order at market price with slippage
+        self.execute_order_at_price(&order_id_copy, execution_price)?;
 
         Ok(())
     }
@@ -173,11 +201,15 @@ impl Account {
         order_id: &OrderId,
         market_data: &M,
     ) -> Result<bool> {
+        let order_id_copy = *order_id;
+        
+        // Get the order
         let order = self
-            .get_order_mut(order_id)
+            .get_order(order_id)
             .ok_or_else(|| Error::OrderNotFound {
-                order_id: *order_id,
-            })?;
+                order_id: order_id_copy,
+            })?
+            .clone();
 
         // Only process limit orders
         if order.order_type != OrderType::Limit {
@@ -192,19 +224,20 @@ impl Account {
         // Get current market price
         let quote = market_data.get_quote(&order.symbol)?;
 
-        // Check if limit price is met
+        // Get limit price (should always be present for limit orders)
         let limit_price = order.limit_price.ok_or_else(|| Error::InvalidOrder {
             reason: "Limit order without limit price".to_string(),
         })?;
 
-        let price_met = match order.side {
+        // Check if the order can be executed
+        let can_execute = match order.side {
             OrderSide::Buy => quote.ask.0 <= limit_price.0,
             OrderSide::Sell => quote.bid.0 >= limit_price.0,
         };
 
-        if price_met {
-            // Execute the order at limit price
-            self.execute_order_at_price(order_id, limit_price)?;
+        if can_execute {
+            // Execute at the limit price
+            self.execute_order_at_price(&order_id_copy, limit_price)?;
             Ok(true)
         } else {
             Ok(false)
@@ -212,65 +245,96 @@ impl Account {
     }
 
     /// Execute an order at a specific price
-    pub fn execute_order_at_price(&mut self, order_id: &OrderId, price: Price) -> Result<()> {
-        // Get the order
-        let order = self
-            .get_order(order_id)
-            .ok_or_else(|| Error::OrderNotFound {
-                order_id: *order_id,
-            })?
-            .clone();
+    fn execute_order_at_price(&mut self, order_id: &OrderId, price: Price) -> Result<()> {
+        // First, clone the order to avoid borrowing issues
+        let order = match self.get_order(order_id) {
+            Some(order) => order.clone(),
+            None => return Err(Error::OrderNotFound { order_id: *order_id }),
+        };
 
-        // Create a trade for the remaining quantity
-        let remaining_qty = order.remaining_quantity();
-        if remaining_qty.is_zero() {
+        // Check if order is active
+        if !order.is_active() {
             return Ok(());
         }
 
-        let trade = Trade::new(
-            order.id,
-            order.symbol.clone(),
-            order.side,
-            remaining_qty,
-            price,
-        );
+        // Get configuration
+        let config = self.get_config();
 
-        // Update position
-        let position = self.get_or_create_position(order.symbol.clone());
-        position.update_with_trade(&trade);
+        // Calculate the trade value and commission
+        let quantity = order.quantity;
+        let value = price.0 * quantity.0;
+        let commission = value * config.commission_rate;
 
-        // Update cash balance
+        // Process order based on side
         match order.side {
             OrderSide::Buy => {
-                let cost = trade.quantity.0 * trade.price.0;
-                if self.cash_balance < cost {
+                // Check if we have enough cash
+                let total_cost = value + commission;
+                if self.cash_balance < total_cost {
                     return Err(Error::InsufficientFunds {
-                        required: cost,
+                        required: total_cost,
                         available: self.cash_balance,
                     });
                 }
-                self.cash_balance -= cost;
+
+                // Update cash balance
+                self.cash_balance -= total_cost;
+
+                // Update position
+                let symbol = order.symbol.clone();
+                self.get_or_create_position(symbol).add(quantity, price);
             }
             OrderSide::Sell => {
-                let proceeds = trade.quantity.0 * trade.price.0;
-                self.cash_balance += proceeds;
+                // Check if we have enough of the asset
+                let symbol = order.symbol.clone();
+                let position_quantity = match self.get_position(&symbol) {
+                    Some(position) => position.quantity,
+                    None => {
+                        return Err(Error::InsufficientPosition {
+                            symbol,
+                            required: quantity.0,
+                            available: Decimal::ZERO,
+                        });
+                    }
+                };
+
+                if position_quantity < quantity {
+                    return Err(Error::InsufficientPosition {
+                        symbol,
+                        required: quantity.0,
+                        available: position_quantity.0,
+                    });
+                }
+
+                // Update position
+                self.get_position_mut(&symbol).unwrap().remove(quantity, price);
+
+                // Update cash balance
+                self.cash_balance += value - commission;
             }
         }
 
-        // Update the order with the trade
-        let order = self
-            .get_order_mut(order_id)
-            .ok_or_else(|| Error::OrderNotFound {
-                order_id: *order_id,
-            })?;
+        // Create a trade record
+        let trade = Trade::new(
+            *order_id,
+            order.symbol.clone(),
+            order.side,
+            quantity,
+            price,
+            commission,
+        );
 
-        order.add_trade(trade);
-
-        // If order is filled, move it to history
-        if order.is_filled() {
-            let order_id_str = order_id.0.to_string();
-            if let Some(order) = self.open_orders.remove(&order_id_str) {
-                self.order_history.push(order);
+        // Update the order
+        if let Some(order) = self.get_order_mut(order_id) {
+            order.execute(trade);
+            
+            // If the order is complete, move it to history
+            if order.is_complete() {
+                let order_id_str = order_id.0.to_string();
+                let order = self.open_orders.remove(&order_id_str);
+                if let Some(order) = order {
+                    self.order_history.push(order);
+                }
             }
         }
 

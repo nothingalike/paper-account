@@ -104,6 +104,25 @@ Demonstrates how to simulate market price movements and process orders against c
 - **Position**: Tracks positions and calculates P&L
 - **Market**: Provides market data for paper trading
 
+## Configuration
+
+The library can be configured using environment variables or a `.env` file. The following configuration options are available:
+
+| Environment Variable | Description | Default |
+|---------------------|-------------|---------|
+| `PAPER_ACCOUNT_DEFAULT_SLIPPAGE` | Default slippage rate for market orders (as a decimal) | 0.0 |
+| `PAPER_ACCOUNT_DEFAULT_SPREAD` | Default spread between bid and ask prices (as a decimal) | 0.0 |
+| `PAPER_ACCOUNT_COMMISSION_RATE` | Commission rate for trades (as a decimal) | 0.0 |
+| `PAPER_ACCOUNT_LOG_LEVEL` | Log level for the library | "info" |
+| `PAPER_ACCOUNT_STORAGE_PATH` | Path for data persistence (if enabled) | None |
+
+Example `.env` file:
+```
+PAPER_ACCOUNT_DEFAULT_SLIPPAGE=0.001
+PAPER_ACCOUNT_DEFAULT_SPREAD=0.0005
+PAPER_ACCOUNT_COMMISSION_RATE=0.0025
+```
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

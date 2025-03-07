@@ -65,9 +65,30 @@ impl SimpleMarketDataProvider {
         self.quotes.insert(quote.symbol.0.clone(), quote);
     }
     
-    /// Set a price for a symbol (creates a quote with bid=ask=last=price)
+    /// Set a price for a symbol (creates a quote with bid/ask spread based on configuration)
     pub fn set_price(&mut self, symbol: Symbol, price: Price) {
-        let quote = Quote::new(symbol.clone(), price, price, price);
+        // Get spread from configuration (use global config as default)
+        let config = crate::config::get();
+        let half_spread = Price(price.0 * config.default_spread / rust_decimal::Decimal::from(2));
+        
+        // Calculate bid and ask with the spread
+        let bid = Price(price.0 - half_spread.0);
+        let ask = Price(price.0 + half_spread.0);
+        
+        let quote = Quote::new(symbol.clone(), bid, ask, price);
+        self.quotes.insert(symbol.0, quote);
+    }
+    
+    /// Set a price for a symbol with a specific configuration
+    pub fn set_price_with_config(&mut self, symbol: Symbol, price: Price, config: &crate::config::Config) {
+        // Get spread from provided configuration
+        let half_spread = Price(price.0 * config.default_spread / rust_decimal::Decimal::from(2));
+        
+        // Calculate bid and ask with the spread
+        let bid = Price(price.0 - half_spread.0);
+        let ask = Price(price.0 + half_spread.0);
+        
+        let quote = Quote::new(symbol.clone(), bid, ask, price);
         self.quotes.insert(symbol.0, quote);
     }
 }

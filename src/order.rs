@@ -56,6 +56,8 @@ pub struct Trade {
     pub quantity: Quantity,
     /// Price of the trade
     pub price: Price,
+    /// Commission paid for the trade
+    pub commission: rust_decimal::Decimal,
     /// Timestamp of the trade
     pub timestamp: DateTime<Utc>,
 }
@@ -68,6 +70,7 @@ impl Trade {
         side: OrderSide,
         quantity: Quantity,
         price: Price,
+        commission: rust_decimal::Decimal,
     ) -> Self {
         Self {
             id: TradeId::new(),
@@ -76,6 +79,7 @@ impl Trade {
             side,
             quantity,
             price,
+            commission,
             timestamp: Utc::now(),
         }
     }
@@ -233,17 +237,31 @@ impl Order {
     
     /// Add a trade to the order
     pub fn add_trade(&mut self, trade: Trade) {
+        // Update filled quantity
         self.filled_quantity = Quantity(self.filled_quantity.0 + trade.quantity.0);
-        self.updated_at = Utc::now();
         
-        // Update order status
+        // Update status
         if self.filled_quantity.0 >= self.quantity.0 {
             self.status = OrderStatus::Filled;
         } else if self.filled_quantity.0 > rust_decimal::Decimal::ZERO {
             self.status = OrderStatus::PartiallyFilled;
         }
         
+        // Add the trade to the list
         self.trades.push(trade);
+        
+        // Update timestamp
+        self.updated_at = Utc::now();
+    }
+    
+    /// Execute the order with a trade
+    pub fn execute(&mut self, trade: Trade) {
+        self.add_trade(trade);
+    }
+    
+    /// Check if the order is complete (filled, canceled, rejected, or expired)
+    pub fn is_complete(&self) -> bool {
+        self.is_filled() || self.is_canceled() || self.is_rejected() || self.is_expired()
     }
     
     /// Cancel the order

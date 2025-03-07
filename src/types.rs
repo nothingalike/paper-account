@@ -21,7 +21,7 @@ impl fmt::Display for Symbol {
 }
 
 /// Represents a quantity of an asset
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct Quantity(pub Decimal);
 
 impl Quantity {
