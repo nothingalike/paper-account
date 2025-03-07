@@ -31,9 +31,16 @@ pub use manager::AccountManager;
 #[allow(unused_variables)]
 static INIT: std::sync::Once = std::sync::Once::new();
 
-/// Initialize the library
+/// Initialize the library with default configuration
 pub fn init() {
     INIT.call_once(|| {
         config::init();
+    });
+}
+
+/// Initialize the library with custom configuration
+pub fn init_with_config(config: Config) {
+    INIT.call_once(|| {
+        config::init_with_config(config);
     });
 }

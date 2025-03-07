@@ -1,7 +1,4 @@
-use dotenv::dotenv;
 use rust_decimal::Decimal;
-use std::env;
-use std::str::FromStr;
 
 /// Configuration for the paper trading account
 #[derive(Debug, Clone)]
@@ -30,29 +27,20 @@ impl Default for Config {
     }
 }
 
-impl Config {
-    /// Load configuration from environment variables
-    pub fn from_env() -> Self {
-        // Load .env file if it exists
-        let _ = dotenv();
-        
-        Self {
-            default_slippage: get_decimal_env("PAPER_ACCOUNT_DEFAULT_SLIPPAGE", Decimal::ZERO),
-            default_spread: get_decimal_env("PAPER_ACCOUNT_DEFAULT_SPREAD", Decimal::ZERO),
-            commission_rate: get_decimal_env("PAPER_ACCOUNT_COMMISSION_RATE", Decimal::ZERO),
-            log_level: env::var("PAPER_ACCOUNT_LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
-            storage_path: env::var("PAPER_ACCOUNT_STORAGE_PATH").ok(),
-        }
-    }
-}
-
 /// Global configuration instance
 static mut CONFIG: Option<Config> = None;
 
-/// Initialize the global configuration
+/// Initialize the global configuration with default values
 pub fn init() {
     unsafe {
-        CONFIG = Some(Config::from_env());
+        CONFIG = Some(Config::default());
+    }
+}
+
+/// Initialize the global configuration with custom values
+pub fn init_with_config(config: Config) {
+    unsafe {
+        CONFIG = Some(config);
     }
 }
 
@@ -62,18 +50,10 @@ pub fn get() -> Config {
         match &CONFIG {
             Some(config) => config.clone(),
             None => {
-                let config = Config::from_env();
+                let config = Config::default();
                 CONFIG = Some(config.clone());
                 config
             }
         }
-    }
-}
-
-/// Helper function to get a decimal value from an environment variable
-fn get_decimal_env(key: &str, default: Decimal) -> Decimal {
-    match env::var(key) {
-        Ok(val) => Decimal::from_str(&val).unwrap_or(default),
-        Err(_) => default,
     }
 }

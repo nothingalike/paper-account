@@ -2,14 +2,23 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::str::FromStr;
 
-use paper_account::{
+use na_paper_account::{
     AccountManager, Config, OrderSide, Symbol, Price, Quantity, Order,
     market::SimpleMarketDataProvider,
 };
 
-fn main() -> paper_account::error::Result<()> {
-    // Initialize the library
-    paper_account::init();
+fn main() -> na_paper_account::error::Result<()> {
+    // Create a default configuration
+    let default_config = Config {
+        default_slippage: Decimal::from_str("0.0005")?,  // 0.05% default slippage
+        default_spread: Decimal::from_str("0.0002")?,    // 0.02% default spread
+        commission_rate: Decimal::from_str("0.002")?,    // 0.2% default commission
+        log_level: "info".to_string(),
+        storage_path: None,
+    };
+    
+    // Initialize the library with custom config
+    na_paper_account::init_with_config(default_config);
     
     // Create an account manager
     let mut manager = AccountManager::new();

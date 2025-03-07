@@ -20,18 +20,8 @@ rust_decimal_macros = "1.30"
 thiserror = "1.0"
 tokio = { version = "1.28", features = ["full"], optional = true }
 async-trait = { version = "0.1", optional = true }
-dotenv = "0.15"
 dirs = "5.0"
 
 [features]
 default = []
 async = ["tokio", "async-trait"]
-
-[lib]
-name = "paper_account"
-path = "src/lib.rs"
-
-[[bin]]
-name = "rs-paper-account"
-path = "src/main.rs"
-required-features = []

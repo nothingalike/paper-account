@@ -160,21 +160,33 @@ Shows how to manage multiple paper trading accounts with different configuration
 
 ## Configuration
 
-The library can be configured using environment variables or a `.env` file. The following configuration options are available:
+The library can be configured by creating and passing a `Config` object:
 
-| Environment Variable | Description | Default |
-|---------------------|-------------|---------|
-| `PAPER_ACCOUNT_DEFAULT_SLIPPAGE` | Default slippage rate for market orders (as a decimal) | 0.0 |
-| `PAPER_ACCOUNT_DEFAULT_SPREAD` | Default spread between bid and ask prices (as a decimal) | 0.0 |
-| `PAPER_ACCOUNT_COMMISSION_RATE` | Commission rate for trades (as a decimal) | 0.0 |
-| `PAPER_ACCOUNT_LOG_LEVEL` | Log level for the library | "info" |
-| `PAPER_ACCOUNT_STORAGE_PATH` | Path for data persistence (if enabled) | None |
+```rust
+use na_paper_account::{Config, init_with_config};
+use rust_decimal::Decimal;
+use std::str::FromStr;
 
-Example `.env` file:
+// Create a custom configuration
+let config = Config {
+    default_slippage: Decimal::from_str("0.001").unwrap(),  // 0.1% slippage
+    default_spread: Decimal::from_str("0.0005").unwrap(),   // 0.05% spread
+    commission_rate: Decimal::from_str("0.0025").unwrap(),  // 0.25% commission
+    log_level: "info".to_string(),
+    storage_path: None,
+};
+
+// Initialize the library with custom configuration
+init_with_config(config);
 ```
-PAPER_ACCOUNT_DEFAULT_SLIPPAGE=0.001
-PAPER_ACCOUNT_DEFAULT_SPREAD=0.0005
-PAPER_ACCOUNT_COMMISSION_RATE=0.0025
+
+You can also use the default configuration:
+
+```rust
+use na_paper_account::init;
+
+// Initialize with default configuration
+init();
 ```
 
 ## License
