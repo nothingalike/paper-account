@@ -12,11 +12,10 @@ A Rust library for paper trading accounts that can be integrated into trading bo
 
 ## Usage
 
-Add this to your `Cargo.toml`:
+Add this to your project:
 
-```toml
-[dependencies]
-paper_account = "0.1.1"
+```bash
+cargo add na-paper-account
 ```
 
 ## Example
