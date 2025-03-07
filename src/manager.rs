@@ -22,9 +22,12 @@ pub struct AccountManager {
 impl AccountManager {
     /// Create a new account manager
     pub fn new() -> Self {
+        // Check if there's a storage path in the global config
+        let storage_path = crate::config::get().storage_path.map(PathBuf::from);
+        
         Self {
             accounts: HashMap::new(),
-            storage_path: None,
+            storage_path,
         }
     }
 
