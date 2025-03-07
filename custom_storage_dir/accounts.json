@@ -1,0 +1,16 @@
+{
+  "accounts": {
+    "e15c06bf-ca1c-4cab-8ca5-a812c50dee29": {
+      "id": "e15c06bf-ca1c-4cab-8ca5-a812c50dee29",
+      "name": "Test Account",
+      "base_currency": "USD",
+      "cash_balance": "10000",
+      "initial_deposit": "10000",
+      "positions": {},
+      "open_orders": {},
+      "order_history": [],
+      "created_at": "2025-03-07T19:25:26.833114600Z",
+      "updated_at": "2025-03-07T19:25:26.833114600Z"
+    }
+  }
+}

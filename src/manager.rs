@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use log::{debug, info, warn, trace};
 
 use crate::account::Account;
 use crate::config::Config;
@@ -23,7 +24,15 @@ impl AccountManager {
     /// Create a new account manager
     pub fn new() -> Self {
         // Check if there's a storage path in the global config
-        let storage_path = crate::config::get().storage_path.map(PathBuf::from);
+        let config = crate::config::get();
+        let storage_path_debug = config.storage_path.clone();
+        let storage_path = config.storage_path.map(PathBuf::from);
+        
+        if let Some(path) = &storage_path_debug {
+            info!("AccountManager::new() - Using storage path from config: {}", path);
+        } else {
+            debug!("AccountManager::new() - No storage path in config, using None");
+        }
         
         Self {
             accounts: HashMap::new(),
@@ -33,7 +42,9 @@ impl AccountManager {
 
     /// Set the storage path for account persistence
     pub fn with_storage<P: AsRef<Path>>(mut self, path: P) -> Self {
-        self.storage_path = Some(path.as_ref().to_path_buf());
+        let path_buf = path.as_ref().to_path_buf();
+        info!("AccountManager::with_storage() - Setting storage path to: {:?}", path_buf);
+        self.storage_path = Some(path_buf);
         self
     }
 
@@ -107,40 +118,67 @@ impl AccountManager {
     /// Save accounts to storage
     pub fn save(&self) -> Result<()> {
         let path = match &self.storage_path {
-            Some(path) => path.clone(),
-            None => Self::get_default_storage_path()?,
+            Some(path) => {
+                info!("AccountManager::save() - Using provided storage path: {:?}", path);
+                path.clone()
+            },
+            None => {
+                let default_path = Self::get_default_storage_path()?;
+                warn!("AccountManager::save() - No storage path set, using default: {:?}", default_path);
+                default_path
+            },
         };
         
         // Create parent directory if it doesn't exist
         if let Some(parent) = path.parent() {
             if !parent.exists() {
+                debug!("AccountManager::save() - Creating parent directory: {:?}", parent);
                 fs::create_dir_all(parent)?;
             }
         }
         
         let serialized = serde_json::to_string_pretty(&self)?;
+        trace!("AccountManager::save() - Account data serialized, writing to file");
         fs::write(&path, serialized)?;
         
+        info!("AccountManager::save() - Successfully saved {} accounts to: {:?}", 
+            self.account_count(), path);
         Ok(())
     }
 
     /// Load accounts from storage
     pub fn load() -> Result<Self> {
-        Self::load_from_path(Self::get_default_storage_path()?)
+        // Check if there's a storage path in the global config
+        let config = crate::config::get();
+        
+        if let Some(path) = &config.storage_path {
+            info!("AccountManager::load() - Using path from config: {:?}", path);
+            return Self::load_from_path(path);
+        }
+        
+        // Fall back to default path if no path in config
+        let default_path = Self::get_default_storage_path()?;
+        info!("AccountManager::load() - No path in config, using default path: {:?}", default_path);
+        Self::load_from_path(default_path)
     }
 
     /// Load accounts from a specific path
     pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
+        info!("AccountManager::load_from_path() - Loading from path: {:?}", path);
         
         if !path.exists() {
+            warn!("AccountManager::load_from_path() - Path does not exist, creating new manager: {:?}", path);
             return Ok(Self::new().with_storage(path));
         }
         
+        debug!("AccountManager::load_from_path() - Reading file: {:?}", path);
         let data = fs::read_to_string(path)?;
         let mut manager: Self = serde_json::from_str(&data)?;
+        debug!("AccountManager::load_from_path() - Setting storage path to: {:?}", path);
         manager.storage_path = Some(path.to_path_buf());
         
+        info!("AccountManager::load_from_path() - Successfully loaded {} accounts", manager.account_count());
         Ok(manager)
     }
 
@@ -175,5 +213,10 @@ impl AccountManager {
         self.accounts.get_mut(&to_id.0.to_string()).unwrap().cash_balance += amount;
         
         Ok(())
+    }
+
+    /// Get the current storage path
+    pub fn get_storage_path(&self) -> Option<&PathBuf> {
+        self.storage_path.as_ref()
     }
 }

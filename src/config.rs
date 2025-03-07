@@ -1,4 +1,6 @@
 use rust_decimal::Decimal;
+use log::{debug, info};
+use std::sync::Once;
 
 /// Configuration for the paper trading account
 #[derive(Debug, Clone)]
@@ -29,31 +31,46 @@ impl Default for Config {
 
 /// Global configuration instance
 static mut CONFIG: Option<Config> = None;
+static CONFIG_INIT: Once = Once::new();
 
 /// Initialize the global configuration with default values
 pub fn init() {
-    unsafe {
-        CONFIG = Some(Config::default());
-    }
+    debug!("Config::init() - Initializing with default values");
+    CONFIG_INIT.call_once(|| {
+        let default_config = Config::default();
+        debug!("Config::init() - Default config initialized: {:?}", default_config);
+        unsafe {
+            CONFIG = Some(default_config);
+        }
+    });
 }
 
 /// Initialize the global configuration with custom values
 pub fn init_with_config(config: Config) {
-    unsafe {
-        CONFIG = Some(config);
-    }
+    info!("Config::init_with_config() - Initializing with custom config");
+    debug!("Config::init_with_config() - Custom config: {:?}", config);
+    CONFIG_INIT.call_once(|| {
+        unsafe {
+            CONFIG = Some(config);
+        }
+    });
 }
 
 /// Get the global configuration
 pub fn get() -> Config {
     unsafe {
-        match &CONFIG {
-            Some(config) => config.clone(),
-            None => {
-                let config = Config::default();
-                CONFIG = Some(config.clone());
-                config
-            }
+        // If CONFIG is not initialized, initialize it with default values
+        if CONFIG.is_none() {
+            debug!("Config::get() - No config found, creating default");
+            let default_config = Config::default();
+            CONFIG = Some(default_config.clone());
+            debug!("Config::get() - Created default config: {:?}", default_config);
+            return default_config;
         }
+        
+        // Return a clone of the config
+        let config = CONFIG.as_ref().unwrap().clone();
+        debug!("Config::get() - Returning existing config with storage_path: {:?}", config.storage_path);
+        config
     }
 }
